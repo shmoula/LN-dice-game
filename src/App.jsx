@@ -112,35 +112,35 @@ function App() {
     }
   }, []);
 
-  const rollDice = useCallback(() => {
+  const rollDice = useCallback(async () => {
     if (rollingRef.current) return;
     rollingRef.current = true;
     setRolling(true);
 
-    setTimeout(async () => {
-      const diceRoll = 4; //Math.floor(Math.random() * 6) + 1;
-      if (diceRoll === guess) {
-        setResult("🎉 Correct! You won!");
-        setAwaitingPayout(true);
-        const latestPot = await fetchPotFromWallet();
-        await createLnurlWithdraw(latestPot - FEE_BUFFER_SATS);
-      } else {
-        await fetchPotFromWallet();
-        setResult(
-          <span>
-            ❌ Wrong! It was {diceRoll}.{" "}
-            <button
-              className="text-blue-600 underline ml-1"
-              onClick={resetGameState}
-            >
-              Try again.
-            </button>
-          </span>,
-        );
-      }
-      setRolling(false);
-      rollingRef.current = false;
-    }, 1000);
+    const diceRoll = Math.floor(Math.random() * 6) + 1;
+
+    if (diceRoll === guess) {
+      setResult("🎉 Correct! You won!");
+      setAwaitingPayout(true);
+      const latestPot = await fetchPotFromWallet();
+      await createLnurlWithdraw(latestPot - FEE_BUFFER_SATS);
+    } else {
+      await fetchPotFromWallet();
+      setResult(
+        <span>
+          ❌ Wrong! It was {diceRoll}.{" "}
+          <button
+            className="text-blue-600 underline ml-1"
+            onClick={resetGameState}
+          >
+            Try again.
+          </button>
+        </span>,
+      );
+    }
+
+    setRolling(false);
+    rollingRef.current = false;
   }, [guess, createLnurlWithdraw, fetchPotFromWallet]);
 
   const checkPayment = useCallback(() => {
