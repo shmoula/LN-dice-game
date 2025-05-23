@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import QRCode from "react-qr-code";
+import "./App.css";
 
 const LNBITS_API_PAYMENTS = "https://demo.lnbits.com/api/v1/payments";
 const LNBITS_API_WITHDRAW = "https://demo.lnbits.com/withdraw/api/v1/links";
@@ -237,59 +238,77 @@ function App() {
   }, [fetchPotFromWallet]);
 
   return (
-    <div className="p-6 max-w-md mx-auto">
-      <h1 className="text-2xl font-bold mb-4">🎲 Pay to Roll Dice Game</h1>
-      <p className="mb-4">
-        Current pot: {Math.max(pot - FEE_BUFFER_SATS, 0)} sats
-      </p>
+    <div className="app-container">
+      <header className="header">
+        <h1 className="text-2xl font-bold mb-4">🎲 Pay to Roll Dice Game</h1>
+      </header>
 
-      {errorMessage && <p className="mb-4 text-red-600">{errorMessage}</p>}
+      <main className="main-content">
+        <p className="mb-4">
+          Current pot: {Math.max(pot - FEE_BUFFER_SATS, 0)} sats
+        </p>
 
-      {!invoice && (
-        <div className="grid grid-cols-3 gap-2">
-          {[1, 2, 3, 4, 5, 6].map((n) => (
-            <button
-              key={n}
-              className="bg-blue-500 text-white py-2 rounded"
-              onClick={() => handleGuess(n)}
-              disabled={rolling || awaitingPayout}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
-      )}
+        {errorMessage && <p className="mb-4 text-red-600">{errorMessage}</p>}
 
-      {invoice && !paid && (
-        <div className="mt-4 text-center border p-4">
-          <p className="mt-2 font-semibold">You selected: {guess}</p>
-          <p>Scan or copy invoice to pay:</p>
-          <QRCode value={invoice} size={180} className="mx-auto my-2" />
-          <textarea readOnly className="w-full p-2 border" value={invoice} />
-          <p className="text-sm mt-2">Waiting for payment...</p>
-          <button
-            className="mt-4 bg-red-500 text-white px-4 py-2 rounded"
-            onClick={resetGameState}
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-
-      {paid && result && <div className="mt-4 text-lg">{result}</div>}
-
-      {awaitingPayout && lnurl && (
-        <div className="mt-4 text-center">
-          <p>🎉 You won! Scan the LNURL-withdraw QR code to claim your sats:</p>
-          <div className="my-4">
-            <QRCode value={lnurl} size={180} className="mx-auto" />
+        {!invoice && (
+          <div className="grid grid-cols-3 gap-2">
+            {[1, 2, 3, 4, 5, 6].map((n) => (
+              <button
+                key={n}
+                className="bg-blue-500 text-white py-2 rounded"
+                onClick={() => handleGuess(n)}
+                disabled={rolling || awaitingPayout}
+              >
+                {n}
+              </button>
+            ))}
           </div>
-        </div>
-      )}
+        )}
 
-      {rolling && (
-        <div className="mt-4 text-lg animate-pulse">Rolling dice...</div>
-      )}
+        {invoice && !paid && (
+          <div className="mt-4 text-center border p-4">
+            <p className="mt-2 font-semibold">You selected: {guess}</p>
+            <p>Scan or copy invoice to pay:</p>
+            <QRCode value={invoice} size={180} className="mx-auto my-2" />
+            <textarea readOnly className="w-full p-2 border" value={invoice} />
+            <p className="text-sm mt-2">Waiting for payment...</p>
+            <button
+              className="mt-4 bg-red-500 text-white px-4 py-2 rounded"
+              onClick={resetGameState}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {paid && result && <div className="mt-4 text-lg">{result}</div>}
+
+        {awaitingPayout && lnurl && (
+          <div className="mt-4 text-center">
+            <p>
+              🎉 You won! Scan the LNURL-withdraw QR code to claim your sats:
+            </p>
+            <div className="my-4">
+              <QRCode value={lnurl} size={180} className="mx-auto" />
+            </div>
+          </div>
+        )}
+
+        {rolling && (
+          <div className="mt-4 text-lg animate-pulse">Rolling dice...</div>
+        )}
+      </main>
+
+      <footer className="footer">
+        <a
+          href="https://github.com/shmoula/LN-dice-game"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline"
+        >
+          View this project on GitHub
+        </a>
+      </footer>
     </div>
   );
 }
