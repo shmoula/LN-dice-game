@@ -22,6 +22,7 @@ function App() {
   const [lnurl, setLnurl] = useState(null);
   const [withdrawId, setWithdrawId] = useState(null);
   const [awaitingPayout, setAwaitingPayout] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
 
   // Refs for stable callbacks
   const rollingRef = useRef(false);
@@ -37,6 +38,7 @@ function App() {
       return sats;
     } catch (err) {
       console.error("Failed to fetch wallet balance:", err);
+      setErrorMessage("Unable to fetch pot balance. Please try again later.");
       return 0;
     }
   }, []);
@@ -51,6 +53,7 @@ function App() {
     setLnurl(null);
     setWithdrawId(null);
     setAwaitingPayout(false);
+    setErrorMessage(null);
   };
 
   const createInvoice = useCallback(async () => {
@@ -69,12 +72,14 @@ function App() {
       setPaymentHash(res.data.payment_hash);
     } catch (err) {
       console.error("Invoice creation failed:", err);
+      setErrorMessage("Failed to create payment invoice. Please try again.");
     }
   }, []);
 
   const createLnurlWithdraw = useCallback(async (withdrawable) => {
+    setErrorMessage(null);
     if (withdrawable <= 0) {
-      console.warn("Pot too low to cover withdrawal fee.");
+      setErrorMessage("Pot too low to cover withdrawal fee.");
       return;
     }
     try {
@@ -99,6 +104,9 @@ function App() {
       setWithdrawId(res.data.id);
     } catch (err) {
       console.error("Failed to create LNURL-withdraw:", err);
+      setErrorMessage(
+        "Unable to create withdrawal link. Please try again later.",
+      );
     }
   }, []);
 
@@ -154,6 +162,7 @@ function App() {
         }
       } catch (err) {
         console.error("Payment check failed:", err);
+        setErrorMessage("Error checking payment status. Please refresh.");
       }
     };
 
@@ -171,6 +180,7 @@ function App() {
       setLnurl(null);
       setWithdrawId(null);
       setAwaitingPayout(false);
+      setErrorMessage(null);
       await createInvoice();
     },
     [createInvoice],
@@ -200,6 +210,7 @@ function App() {
         }
       } catch (err) {
         console.error("Failed to check withdrawal status:", err);
+        setErrorMessage("Error checking withdrawal. Please try again later.");
       }
     }, REFRESH_WITHDRAWAL_INTERVAL);
     return () => clearInterval(interval);
@@ -218,6 +229,8 @@ function App() {
         Current pot: {Math.max(pot - FEE_BUFFER_SATS, 0)} sats
       </p>
 
+      {errorMessage && <p className="mb-4 text-red-600">{errorMessage}</p>}
+
       {!invoice && (
         <div className="grid grid-cols-3 gap-2">
           {[1, 2, 3, 4, 5, 6].map((n) => (
@@ -225,6 +238,7 @@ function App() {
               key={n}
               className="bg-blue-500 text-white py-2 rounded"
               onClick={() => handleGuess(n)}
+              disabled={rolling || awaitingPayout}
             >
               {n}
             </button>
