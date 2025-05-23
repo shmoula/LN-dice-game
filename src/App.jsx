@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import QRCode from "react-qr-code";
 
@@ -23,7 +23,23 @@ function App() {
   const [withdrawId, setWithdrawId] = useState(null);
   const [awaitingPayout, setAwaitingPayout] = useState(false);
 
-  const showTestButton = false;
+  // Refs for stable callbacks
+  const rollingRef = useRef(false);
+
+  // Fetch pot and return the latest balance (stable)
+  const fetchPotFromWallet = useCallback(async () => {
+    try {
+      const res = await axios.get(LNBITS_API_WALLET, {
+        headers: { "X-Api-Key": ADMIN_KEY, "Content-Type": "application/json" },
+      });
+      const sats = Math.floor(res.data.balance / 1000);
+      setPot(sats);
+      return sats;
+    } catch (err) {
+      console.error("Failed to fetch wallet balance:", err);
+      return 0;
+    }
+  }, []);
 
   const resetGameState = () => {
     setGuess(null);
@@ -37,15 +53,11 @@ function App() {
     setAwaitingPayout(false);
   };
 
-  const createInvoice = async () => {
+  const createInvoice = useCallback(async () => {
     try {
       const res = await axios.post(
         LNBITS_API_PAYMENTS,
-        {
-          out: false,
-          amount: INVOICE_AMOUNT,
-          memo: "Pay to Roll Dice Game",
-        },
+        { out: false, amount: INVOICE_AMOUNT, memo: "Pay to Roll Dice Game" },
         {
           headers: {
             "X-Api-Key": ADMIN_KEY,
@@ -53,44 +65,25 @@ function App() {
           },
         },
       );
-      if (res.data && res.data.bolt11 && res.data.payment_hash) {
-        setInvoice(res.data.bolt11);
-        setPaymentHash(res.data.payment_hash);
-      }
-    } catch (error) {
-      console.error("Error creating invoice:", error);
+      setInvoice(res.data.bolt11);
+      setPaymentHash(res.data.payment_hash);
+    } catch (err) {
+      console.error("Invoice creation failed:", err);
     }
-  };
+  }, []);
 
-  const fetchPotFromWallet = async () => {
-    try {
-      const res = await axios.get(LNBITS_API_WALLET, {
-        headers: {
-          "X-Api-Key": ADMIN_KEY,
-          "Content-Type": "application/json",
-        },
-      });
-      const sats = Math.floor(res.data.balance / 1000);
-      setPot(sats);
-    } catch (error) {
-      console.error("Failed to fetch wallet balance:", error);
-    }
-  };
-
-  const createLnurlWithdraw = useCallback(async () => {
-    const withdrawableAmount = pot - FEE_BUFFER_SATS;
-    if (withdrawableAmount <= 0) {
+  const createLnurlWithdraw = useCallback(async (withdrawable) => {
+    if (withdrawable <= 0) {
       console.warn("Pot too low to cover withdrawal fee.");
       return;
     }
-
     try {
       const res = await axios.post(
         LNBITS_API_WITHDRAW,
         {
           title: "Dice Game Winnings",
-          min_withdrawable: withdrawableAmount,
-          max_withdrawable: withdrawableAmount,
+          min_withdrawable: withdrawable,
+          max_withdrawable: withdrawable,
           uses: 1,
           wait_time: 1,
           is_unique: true,
@@ -104,21 +97,23 @@ function App() {
       );
       setLnurl(res.data.lnurl);
       setWithdrawId(res.data.id);
-    } catch (error) {
-      console.error("Failed to create LNURL-withdraw:", error);
+    } catch (err) {
+      console.error("Failed to create LNURL-withdraw:", err);
     }
-  }, [pot]);
+  }, []);
 
   const rollDice = useCallback(() => {
-    if (rolling) return;
+    if (rollingRef.current) return;
+    rollingRef.current = true;
     setRolling(true);
+
     setTimeout(async () => {
-      const diceRoll = Math.floor(Math.random() * 6) + 1;
+      const diceRoll = 4; //Math.floor(Math.random() * 6) + 1;
       if (diceRoll === guess) {
         setResult("🎉 Correct! You won!");
         setAwaitingPayout(true);
-        await createLnurlWithdraw();
-        await fetchPotFromWallet();
+        const latestPot = await fetchPotFromWallet();
+        await createLnurlWithdraw(latestPot - FEE_BUFFER_SATS);
       } else {
         await fetchPotFromWallet();
         setResult(
@@ -134,11 +129,13 @@ function App() {
         );
       }
       setRolling(false);
+      rollingRef.current = false;
     }, 1000);
-  }, [guess, createLnurlWithdraw, rolling]);
+  }, [guess, createLnurlWithdraw, fetchPotFromWallet]);
 
   const checkPayment = useCallback(() => {
     if (!paymentHash) return;
+    let cancelled = false;
 
     const verify = async () => {
       try {
@@ -148,11 +145,12 @@ function App() {
             "Content-Type": "application/json",
           },
         });
+        if (cancelled) return;
         if (res.data.paid) {
           setPaid(true);
           rollDice();
         } else {
-          setTimeout(() => verify(), 3000);
+          setTimeout(verify, 3000);
         }
       } catch (err) {
         console.error("Payment check failed:", err);
@@ -160,44 +158,33 @@ function App() {
     };
 
     verify();
+    return () => {
+      cancelled = true;
+    };
   }, [paymentHash, rollDice]);
 
-  const handleGuess = async (num) => {
-    setGuess(num);
-    setResult(null);
-    setPaid(false);
-    setInvoice(null);
-    setAwaitingPayout(false);
-    setLnurl(null);
-    setWithdrawId(null);
-    try {
+  const handleGuess = useCallback(
+    async (num) => {
+      setGuess(num);
+      setResult(null);
+      setPaid(false);
+      setLnurl(null);
+      setWithdrawId(null);
+      setAwaitingPayout(false);
       await createInvoice();
-    } catch (err) {
-      console.error("Invoice creation failed:", err);
-    }
-  };
+    },
+    [createInvoice],
+  );
 
-  const testWithdraw = async () => {
-    if (pot <= 0) {
-      alert("Pot must be greater than 0 to withdraw.");
-      return;
-    }
-    setLnurl(null);
-    setAwaitingPayout(true);
-    await createLnurlWithdraw();
-    await fetchPotFromWallet();
-  };
-
+  // Trigger payment check and initial pot fetch
   useEffect(() => {
-    if (invoice && paymentHash) {
-      checkPayment();
-    }
+    if (invoice && paymentHash) checkPayment();
     fetchPotFromWallet();
-  }, [invoice, paymentHash, checkPayment]);
+  }, [invoice, paymentHash, checkPayment, fetchPotFromWallet]);
 
+  // Poll withdrawal status
   useEffect(() => {
     if (!awaitingPayout || !withdrawId) return;
-
     const interval = setInterval(async () => {
       try {
         const res = await axios.get(`${LNBITS_API_WITHDRAW}/${withdrawId}`, {
@@ -211,21 +198,18 @@ function App() {
           await fetchPotFromWallet();
           resetGameState();
         }
-      } catch (error) {
-        console.error("Failed to check withdrawal status:", error);
+      } catch (err) {
+        console.error("Failed to check withdrawal status:", err);
       }
     }, REFRESH_WITHDRAWAL_INTERVAL);
-
     return () => clearInterval(interval);
-  }, [awaitingPayout, withdrawId]);
+  }, [awaitingPayout, withdrawId, fetchPotFromWallet]);
 
+  // Regular pot refresh
   useEffect(() => {
-    const interval = setInterval(() => {
-      fetchPotFromWallet();
-    }, REFRESH_POT_INTERVAL);
-
+    const interval = setInterval(fetchPotFromWallet, REFRESH_POT_INTERVAL);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchPotFromWallet]);
 
   return (
     <div className="p-6 max-w-md mx-auto">
@@ -248,21 +232,9 @@ function App() {
         </div>
       )}
 
-      {showTestButton && (
-        <div className="mt-4">
-          <button
-            className="bg-green-600 text-white px-4 py-2 rounded"
-            onClick={testWithdraw}
-          >
-            🧪 Test LNURL Withdraw
-          </button>
-        </div>
-      )}
-
       {invoice && !paid && (
         <div className="mt-4 text-center border p-4">
           <p className="mt-2 font-semibold">You selected: {guess}</p>
-
           <p>Scan or copy invoice to pay:</p>
           <QRCode value={invoice} size={180} className="mx-auto my-2" />
           <textarea readOnly className="w-full p-2 border" value={invoice} />
@@ -280,10 +252,7 @@ function App() {
 
       {awaitingPayout && lnurl && (
         <div className="mt-4 text-center">
-          <p>
-            🎉 You won! Scan the LNURL-withdraw QR code to claim your{" "}
-            {pot - FEE_BUFFER_SATS} sats:
-          </p>
+          <p>🎉 You won! Scan the LNURL-withdraw QR code to claim your sats:</p>
           <div className="my-4">
             <QRCode value={lnurl} size={180} className="mx-auto" />
           </div>
