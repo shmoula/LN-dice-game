@@ -110,6 +110,7 @@ function App() {
   }, [pot]);
 
   const rollDice = useCallback(() => {
+    if (rolling) return;
     setRolling(true);
     setTimeout(async () => {
       const diceRoll = Math.floor(Math.random() * 6) + 1;
