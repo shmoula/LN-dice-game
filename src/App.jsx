@@ -261,12 +261,18 @@ function App() {
 
       {invoice && !paid && (
         <div className="mt-4 text-center border p-4">
+          <p className="mt-2 font-semibold">You selected: {guess}</p>
+
           <p>Scan or copy invoice to pay:</p>
-          <>
-            <QRCode value={invoice} size={180} className="mx-auto my-2" />
-            <textarea readOnly className="w-full p-2 border" value={invoice} />
-            <p className="text-sm mt-2">Waiting for payment...</p>
-          </>
+          <QRCode value={invoice} size={180} className="mx-auto my-2" />
+          <textarea readOnly className="w-full p-2 border" value={invoice} />
+          <p className="text-sm mt-2">Waiting for payment...</p>
+          <button
+            className="mt-4 bg-red-500 text-white px-4 py-2 rounded"
+            onClick={resetGameState}
+          >
+            Cancel
+          </button>
         </div>
       )}
 
