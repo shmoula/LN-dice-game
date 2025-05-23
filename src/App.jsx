@@ -121,11 +121,21 @@ function App() {
         await fetchPotFromWallet();
       } else {
         await fetchPotFromWallet();
-        setResult(`❌ Wrong! It was ${diceRoll}. Try again.`);
+        setResult(
+          <span>
+            ❌ Wrong! It was {diceRoll}.{" "}
+            <button
+              className="text-blue-600 underline ml-1"
+              onClick={resetGameState}
+            >
+              Try again.
+            </button>
+          </span>,
+        );
       }
       setRolling(false);
     }, 1000);
-  }, [guess, createLnurlWithdraw]);
+  }, [guess, createLnurlWithdraw, rolling]);
 
   const checkPayment = useCallback(() => {
     if (!paymentHash) return;
