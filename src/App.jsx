@@ -9,6 +9,8 @@ const FEE_BUFFER_SATS = 10;
 const INVOICE_AMOUNT = 100;
 const REFRESH_WITHDRAWAL_INTERVAL = 5000;
 const REFRESH_POT_INTERVAL = 10000;
+const MAX_PAYMENT_ATTEMPTS = 5;
+const INITIAL_BACKOFF_MS = 3000;
 const ADMIN_KEY = import.meta.env.VITE_ADMIN_KEY;
 
 function App() {
@@ -144,6 +146,7 @@ function App() {
   const checkPayment = useCallback(() => {
     if (!paymentHash) return;
     let cancelled = false;
+    let attempts = 0;
 
     const verify = async () => {
       try {
@@ -157,9 +160,20 @@ function App() {
         if (res.data.paid) {
           setPaid(true);
           rollDice();
-        } else {
-          setTimeout(verify, 3000);
+          return;
         }
+        attempts += 1;
+        if (attempts >= MAX_PAYMENT_ATTEMPTS) {
+          setErrorMessage(
+            "Payment is taking longer than expected. Please check your wallet.",
+          );
+          return;
+        }
+        const backoff = Math.min(
+          INITIAL_BACKOFF_MS * 2 ** (attempts - 1),
+          30000,
+        );
+        setTimeout(verify, backoff);
       } catch (err) {
         console.error("Payment check failed:", err);
         setErrorMessage("Error checking payment status. Please refresh.");
